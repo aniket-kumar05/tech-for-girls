@@ -260,68 +260,63 @@
       </div>
     </div>
 <script>
-  const uploadScriptURL = "https://script.google.com/macros/s/AKfycbzFKOTim8zpWY-wAkp4iAStLkTnfOSOdasIqaiQLc9DGjLwlRIVCpFpsLWDNY-nZ3NgOQ/exec"; // handles file upload
-  const submitScriptURL = "https://script.google.com/macros/s/AKfycbzw9j8I52-eirnKE2bdK0kw5eXjXMyAkEyEV3lr4tH_8ezG749m1jlrt9Kbtly8AQT8aQ/exec"; // handles saving to Sheet
+  const uploadScriptURL = "YOUR_UPLOAD_SCRIPT_URL"; // Image to Drive
+  const submitScriptURL = "YOUR_SUBMIT_SCRIPT_URL"; // Form to Sheet
 
   const form = document.getElementById("submit-to-google-sheet");
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    // 1️⃣ Get the file
     const fileInput = form.querySelector("input[name='screenshot']");
     const file = fileInput.files[0];
-
     if (!file) {
-      alert("Please upload a screenshot first.");
+      Swal.fire("Please upload a screenshot.");
       return;
     }
 
-    // 2️⃣ Convert file to base64
+    // Convert image to base64
     const base64 = await toBase64(file);
 
-    console.log("📦 Screenshot prepared, uploading to Drive...");
-
-    // 3️⃣ Upload image to Drive
-    const uploadResponse = await fetch(uploadScriptURL, {
+    // Step 1: Upload to Drive
+    const uploadRes = await fetch(uploadScriptURL, {
       method: "POST",
       body: JSON.stringify({
         filename: file.name,
         mimeType: file.type,
-        data: base64.split(",")[1], // remove data:image/png;base64,
+        data: base64.split(",")[1],
       }),
       headers: {
         "Content-Type": "application/json",
       },
     });
 
-    const uploadResult = await uploadResponse.json();
-    console.log("✅ Uploaded:", uploadResult);
+    const uploadData = await uploadRes.json();
+    console.log("✅ Upload Response:", uploadData);
 
-    if (uploadResult.result !== "success") {
-      alert("Image upload failed!");
+    if (uploadData.result !== "success") {
+      Swal.fire("Upload failed", uploadData.message || "Error", "error");
       return;
     }
 
-    const imageUrl = uploadResult.url;
-
-    // 4️⃣ Now submit form data with image URL
+    // Step 2: Send form data + image URL to Sheet
     const formData = new FormData(form);
-    formData.append("screenshot", imageUrl); // instead of file, pass URL
+    formData.append("screenshot", uploadData.url); // Add file URL to form data
 
-    const response = await fetch(submitScriptURL, {
+    const submitRes = await fetch(submitScriptURL, {
       method: "POST",
       body: formData,
     });
 
-    const result = await response.json();
-    console.log("📄 Form submitted:", result);
+    const result = await submitRes.json();
+    console.log("✅ Sheet Response:", result);
 
     if (result.result === "success") {
-      Swal.fire("🎉 Success", "Your response is recorded!", "success");
+      Swal.fire("🎉 Submitted!", "Your form was submitted successfully.", "success");
       form.reset();
+      localStorage.setItem("submitted", "true");
     } else {
-      Swal.fire("Error", result.message || "Something went wrong", "error");
+      Swal.fire("Error", result.message || "Form submission failed", "error");
     }
   });
 
@@ -330,10 +325,19 @@
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => resolve(reader.result);
-      reader.onerror = (error) => reject(error);
+      reader.onerror = reject;
     });
   }
+
+  // Disable form if already submitted
+  window.addEventListener("DOMContentLoaded", () => {
+    if (localStorage.getItem("submitted")) {
+      form.querySelectorAll("input, textarea, select, button").forEach((el) => (el.disabled = true));
+      Swal.fire("⛔️ Already Submitted", "You have already submitted this form.", "info");
+    }
+  });
 </script>
+
 
   </body>
 </html>
