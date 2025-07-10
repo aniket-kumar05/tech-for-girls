@@ -259,83 +259,81 @@
         </form>
       </div>
     </div>
+<script>
+  const uploadScriptURL = "https://script.google.com/macros/s/AKfycbzFKOTim8zpWY-wAkp4iAStLkTnfOSOdasIqaiQLc9DGjLwlRIVCpFpsLWDNY-nZ3NgOQ/exec"; // handles file upload
+  const submitScriptURL = "https://script.google.com/macros/s/AKfycbzw9j8I52-eirnKE2bdK0kw5eXjXMyAkEyEV3lr4tH_8ezG749m1jlrt9Kbtly8AQT8aQ/exec"; // handles saving to Sheet
 
-    <script>
-      const scriptURL = "https://script.google.com/macros/s/AKfycbzcOVcoCunYkiiXMo0Lvg2xAUKhx31tZ20M4uUle40jpF_PK8T7lAH4rSMYr__kVEeEDA/exec";
+  const form = document.getElementById("submit-to-google-sheet");
 
-      const form = document.getElementById("submit-to-google-sheet");
-      let shareCount = 0;
-      const maxShares = 5;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-      const whatsappBtn = document.getElementById("whatsappBtn");
-      const clickCounter = document.getElementById("clickCounter");
-      const shareStatus = document.getElementById("shareStatus");
+    // 1️⃣ Get the file
+    const fileInput = form.querySelector("input[name='screenshot']");
+    const file = fileInput.files[0];
 
-      whatsappBtn.addEventListener("click", () => {
-        const message = "Hey Buddy, Join Tech For Girls Community!";
-        const encodedMessage = encodeURIComponent(message);
-        const whatsappURL = `https://wa.me/?text=${encodedMessage}`;
-        window.open(whatsappURL, "_blank");
+    if (!file) {
+      alert("Please upload a screenshot first.");
+      return;
+    }
 
-        if (shareCount < maxShares) {
-          shareCount++;
-          clickCounter.textContent = `Click count: ${shareCount}/${maxShares}`;
-          if (shareCount === maxShares) {
-            shareStatus.textContent = "✅ Sharing complete. You can now submit the form.";
-            shareStatus.classList.remove("text-info");
-            shareStatus.classList.add("text-success");
-          }
-        }
-      });
+    // 2️⃣ Convert file to base64
+    const base64 = await toBase64(file);
 
-     form.addEventListener("submit", (e) => {
-  e.preventDefault();
+    console.log("📦 Screenshot prepared, uploading to Drive...");
 
-  if (shareCount < maxShares) {
-    Swal.fire("Please share on WhatsApp at least 5 times before submitting.");
-    return;
-  }
-
-  const formData = new FormData(form);
-  console.log("📦 Form data prepared. Submitting to Apps Script...");
-
-  fetch(scriptURL, {
-    method: "POST",
-    body: formData,
-  })
-    .then(async (res) => {
-      const text = await res.text();  // Use text instead of json to inspect
-      console.log("🔍 Raw response text:", text);
-
-      try {
-        const result = JSON.parse(text);
-        if (result.result === "success") {
-          console.log("✅ Uploaded:", result.fileUrl);
-          Swal.fire("🎉 Success", "Your response has been recorded!", "success");
-          form.querySelectorAll("input, textarea, select, button").forEach((el) => (el.disabled = true));
-          localStorage.setItem("submitted", "true");
-        } else {
-          console.error("❌ Upload failed:", result.message || "Unknown error");
-          Swal.fire("Error", result.message || "Unknown error", "error");
-        }
-      } catch (err) {
-        console.error("❌ Failed to parse JSON:", err);
-        Swal.fire("Error", "Invalid response from server.", "error");
-      }
-    })
-    .catch((err) => {
-      console.error("❌ Fetch error:", err);
-      Swal.fire("Error", "Submission failed. Please try again later.", "error");
+    // 3️⃣ Upload image to Drive
+    const uploadResponse = await fetch(uploadScriptURL, {
+      method: "POST",
+      body: JSON.stringify({
+        filename: file.name,
+        mimeType: file.type,
+        data: base64.split(",")[1], // remove data:image/png;base64,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
-});
 
+    const uploadResult = await uploadResponse.json();
+    console.log("✅ Uploaded:", uploadResult);
 
-      window.addEventListener("DOMContentLoaded", () => {
-        if (localStorage.getItem("submitted")) {
-          form.querySelectorAll("input, textarea, select, button").forEach((el) => el.disabled = true);
-          Swal.fire("⛔️ Already Submitted", "You have already submitted this form.", "info");
-        }
-      });
-    </script>
+    if (uploadResult.result !== "success") {
+      alert("Image upload failed!");
+      return;
+    }
+
+    const imageUrl = uploadResult.url;
+
+    // 4️⃣ Now submit form data with image URL
+    const formData = new FormData(form);
+    formData.append("screenshot", imageUrl); // instead of file, pass URL
+
+    const response = await fetch(submitScriptURL, {
+      method: "POST",
+      body: formData,
+    });
+
+    const result = await response.json();
+    console.log("📄 Form submitted:", result);
+
+    if (result.result === "success") {
+      Swal.fire("🎉 Success", "Your response is recorded!", "success");
+      form.reset();
+    } else {
+      Swal.fire("Error", result.message || "Something went wrong", "error");
+    }
+  });
+
+  function toBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    });
+  }
+</script>
+
   </body>
 </html>
