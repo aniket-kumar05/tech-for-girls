@@ -288,35 +288,47 @@
         }
       });
 
-      form.addEventListener("submit", (e) => {
-        e.preventDefault();
+     form.addEventListener("submit", (e) => {
+  e.preventDefault();
 
-        if (shareCount < maxShares) {
-          Swal.fire("Please share on WhatsApp at least 5 times before submitting.");
-          return;
+  if (shareCount < maxShares) {
+    Swal.fire("Please share on WhatsApp at least 5 times before submitting.");
+    return;
+  }
+
+  const formData = new FormData(form);
+  console.log("📦 Form data prepared. Submitting to Apps Script...");
+
+  fetch(scriptURL, {
+    method: "POST",
+    body: formData,
+  })
+    .then(async (res) => {
+      const text = await res.text();  // Use text instead of json to inspect
+      console.log("🔍 Raw response text:", text);
+
+      try {
+        const result = JSON.parse(text);
+        if (result.result === "success") {
+          console.log("✅ Uploaded:", result.fileUrl);
+          Swal.fire("🎉 Success", "Your response has been recorded!", "success");
+          form.querySelectorAll("input, textarea, select, button").forEach((el) => (el.disabled = true));
+          localStorage.setItem("submitted", "true");
+        } else {
+          console.error("❌ Upload failed:", result.message || "Unknown error");
+          Swal.fire("Error", result.message || "Unknown error", "error");
         }
+      } catch (err) {
+        console.error("❌ Failed to parse JSON:", err);
+        Swal.fire("Error", "Invalid response from server.", "error");
+      }
+    })
+    .catch((err) => {
+      console.error("❌ Fetch error:", err);
+      Swal.fire("Error", "Submission failed. Please try again later.", "error");
+    });
+});
 
-        const formData = new FormData(form);
-
-        fetch(scriptURL, {
-          method: "POST",
-          body: formData,
-        })
-          .then((res) => res.json())
-          .then((result) => {
-            if (result.result === "success") {
-              Swal.fire("🎉 Success", "Your response has been recorded!", "success");
-              form.querySelectorAll("input, textarea, select, button").forEach((el) => el.disabled = true);
-              localStorage.setItem("submitted", "true");
-            } else {
-              Swal.fire("Error", result.message || "Unknown error", "error");
-            }
-          })
-          .catch((err) => {
-            console.error("Fetch error:", err);
-            Swal.fire("Error", "Submission failed. Please try again later.", "error");
-          });
-      });
 
       window.addEventListener("DOMContentLoaded", () => {
         if (localStorage.getItem("submitted")) {
